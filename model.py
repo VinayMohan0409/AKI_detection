@@ -23,19 +23,26 @@ def make_features(df: pd.DataFrame, age_col: str = "age", sex_col: str = "sex") 
     """
     # Find creatinine result columns (e.g. creatinine_result_0, creatinine_result_1, ...)
     res_cols = [c for c in df.columns if re.search(r"creatinine_result_\d+$", c, re.I)]
+    res_cols = sorted(res_cols, key=lambda c: int(re.findall(r"(\d+)$", c)[0])) # Robustness against shuffled columns
 
+    
     if not res_cols:
         raise ValueError(
             "No creatinine_result_* columns found (expected creatinine_result_0, creatinine_result_1, ...)."
         )
 
-    # Saves the creatine values to V (2D array)
+    # Saves the creatinine values to V (2D array)
     V = df[res_cols].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
     valid = np.isfinite(V)
 
+    if np.all(~valid):
+        raise ValueError(
+            "All creatinine_result_* values are missing or non-numeric after conversion."
+        )
+
     n = len(df)
-    baseline = np.full(n, np.nan, dtype=float) # first available creatine result for all patients
-    index = np.full(n, np.nan, dtype=float) # latest creatine result for all patients
+    baseline = np.full(n, np.nan, dtype=float) # first available creatinine result for all patients
+    index = np.full(n, np.nan, dtype=float) # latest creatinine result for all patients
 
     for i in range(n):
         idx = np.where(valid[i])[0] # index of valid creatinine measurements for patient i
@@ -99,12 +106,12 @@ def main():
     try:
         df_train = pd.read_csv(TRAIN_PATH)
     except FileNotFoundError as e:
-        raise FileNotFoundError("Training file not found: {TRAIN_PATH}") from e
+        raise FileNotFoundError(f"Training file not found: {TRAIN_PATH}") from e
     except Exception as e:
-        raise RuntimeError(f"Failed to read training.csv '{TRAIN_PATH}': {e}") from e
+        raise RuntimeError(f"Failed to read training file {TRAIN_PATH}: {e}") from e
 
     X_train = make_features(df_train).to_numpy()
-    y_train = parse_labels(df_train).astype(int)
+    y_train = parse_labels(df_train)
 
     # Internal evaluation: 90/10 training/holdout + 5-fold CV on the 90%
     X_trainval, X_holdout, y_trainval, y_holdout = train_test_split(
