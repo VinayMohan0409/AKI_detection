@@ -158,6 +158,13 @@ def main():
     tn, fp, fn, tp = confusion_matrix(y_holdout, y_hold_pred, labels=[0, 1]).ravel()
     print(f"TN: {tn}  FP: {fp}  FN: {fn}  TP: {tp}")
 
+    MIN_EXPECTED_F3 = 0.73  # set this realistically for your project
+
+    if hold_f3 < MIN_EXPECTED_F3:
+        raise RuntimeError(
+            f"Model quality gate failed: holdout F3={hold_f3:.3f} < {MIN_EXPECTED_F3:.2f}"
+        )
+
     # Load unlabeled test set and predict
     try:
         df_test = pd.read_csv(flags.input)
