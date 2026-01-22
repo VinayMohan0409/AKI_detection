@@ -23,6 +23,12 @@ number of available tests, along with age and binary-encoded sex. Missing values
 A logistic regression classifier is used to address the supervised binary classification
 task of predicting AKI versus non-AKI.
 
+## Data Splits
+The labelled data are split into training data for model fitting, validation data
+(via 5-fold cross-validation) for F3-based threshold selection, and a held-out
+set (10%) used once for unbiased internal evaluation. (Training and Validation uses 90% of the training data set)
+
+
 ## Recall prioritisation and evaluation
 Recall is prioritised in three ways:
 - Metric choice: model selection is based on the F3 score, which heavily weights recall.
