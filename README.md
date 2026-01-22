@@ -7,23 +7,21 @@ The solution consists of:
 - explore.ipynb – exploratory data analysis and feature understanding
 - model.py – training, validation, and inference pipeline 
 
-## explore.ipynb
+### explore.ipynb
 The notebook is used to:
-- analyse class imbalance (~79% non-AKI),
+- analyse class imbalance (roughly 79% non-AKI),
 - motivate the use of derived features (e.g. baseline, recent value, and changes over time).
 All design decisions in model.py are motivated by findings in this notebook.
 
-## model.py
+### model.py
 - Feature engineering.
 - For each patient, the model extracts robust summary features from variable-length creatinine histories, including:
 baseline and most recent values, min, max, mean, standard deviation, and range, absolute and relative change from baseline,
 number of available tests, along with age and binary-encoded sex. Missing values are handled explicitly.
 
 ## Model
-A logistic regression classifier is used within a preprocessing pipeline. This model was chosen for its:
-- stable probabilistic outputs,
-- interpretability,
-- suitability for tabular clinical data,
+A logistic regression classifier is used to address the supervised binary classification
+task of predicting AKI versus non-AKI.
 
 ## Recall prioritisation and evaluation
 Recall is prioritised in three ways:
