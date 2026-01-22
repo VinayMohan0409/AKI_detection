@@ -4,7 +4,7 @@
 This repository implements a machine learning system to predict acute kidney injury (AKI) from patient blood test data, developed in accordance with the coursework brief. The system prioritises recall to minimise false negatives, as missing AKI cases is clinically more harmful than raising false alarms.
 
 The solution consists of:
-- explore.ipynb – exploratory data analysis and feature understanding
+- explore.ipynb - exploratory data analysis and feature understanding
 - model.py – training, validation, and inference pipeline 
 
 ### explore.ipynb
@@ -32,8 +32,8 @@ set (10%) used once for unbiased internal evaluation. (Training and Validation u
 ## Recall prioritisation and evaluation
 Recall is prioritised in three ways:
 - Metric choice: model selection is based on the F3 score, which heavily weights recall.
-- Threshold optimisation: using 5-fold stratified cross-validation, out-of-fold predicted probabilities are collected and a decision threshold is chosen to maximise F3 on validation data.
-- Locked operating point: the chosen threshold is fixed before evaluation on a held-out set and before generating final predictions.
+- Threshold optimisation: using 5-fold stratified cross-validation, out of fold predicted probabilities are collected and a decision threshold is chosen to maximise F3 on validation data.
+- The chosen threshold is fixed before evaluation on a held-out set and before generating final predictions.
 This ensures recall-biased behaviour without test-set leakage and aligns validation and deployment decisions.
 
 ## Summary
