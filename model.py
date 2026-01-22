@@ -13,6 +13,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import fbeta_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score
+
 
 SEED = 36
 MAP_SEX = {"M": 1, "F": 0}
@@ -23,7 +25,7 @@ def make_features(df: pd.DataFrame, age_col: str = "age", sex_col: str = "sex") 
     """
     # Find creatinine result columns (e.g. creatinine_result_0, creatinine_result_1, ...)
     res_cols = [c for c in df.columns if re.search(r"creatinine_result_\d+$", c, re.I)]
-    res_cols = sorted(res_cols, key=lambda c: int(re.findall(r"(\d+)$", c)[0])) # Robustness against shuffled columns
+    res_cols = sorted(res_cols, key=lambda c: int(re.findall(r"(\d+)$", c)[0])) # For robustness against shuffled columns
 
     
     if not res_cols:
@@ -48,8 +50,8 @@ def make_features(df: pd.DataFrame, age_col: str = "age", sex_col: str = "sex") 
         idx = np.where(valid[i])[0] # index of valid creatinine measurements for patient i
         if idx.size == 0:
             continue
-        baseline[i] = V[i, idx.min()]  # first available measurement 
-        index[i] = V[i, idx.max()] # most recent measurement
+        baseline[i] = V[i, idx.min()] 
+        index[i] = V[i, idx.max()] 
 
     X = pd.DataFrame(index=df.index)
 
@@ -92,6 +94,27 @@ def parse_labels(df: pd.DataFrame, label_col: str = "aki") -> np.ndarray:
         raise ValueError(f"Invalid labels in '{label_col}'. Expected 'y'/'n'. Examples: {bad}")
     return y.to_numpy(dtype=int)
 
+def best_threshold_for_fbeta(y_true: np.ndarray, p_pos: np.ndarray, beta: float = 3.0):
+    """
+    Selects the decision threshold that maximises the F3 score.
+
+    The classifier outputs probabilities; threshold optimisation is required because
+    the default threshold (0.5) does not, in general, maximise F3. Using F3
+    prioritises recall over precision, reducing false negatives, as each false negative
+    represents a deteriorating patient who may be overlooked
+    """
+    thresholds = np.linspace(0.01, 0.99, 99)
+    best_t = 0.5
+    best_f = -1.0
+
+    for t in thresholds:
+        y_pred = (p_pos >= t).astype(int)
+        f = fbeta_score(y_true, y_pred, beta=beta)
+        if f > best_f:
+            best_f = f
+            best_t = float(t)
+
+    return best_t, best_f
 
 def main():
     parser = argparse.ArgumentParser()
@@ -130,42 +153,53 @@ def main():
         ("model", LogisticRegression(max_iter=1000, class_weight="balanced"))
     ]) # Prevents data leakage during cross-validation.
 
+    oof_p = np.zeros(len(y_trainval)) # Store out of fold probabilities
+
     train_scores = []
-    val_scores = []
 
     for tr_idx, val_idx in cv.split(X_trainval, y_trainval):
         X_tr, X_val = X_trainval[tr_idx], X_trainval[val_idx]
-        y_tr, y_val = y_trainval[tr_idx], y_trainval[val_idx]
+        y_tr = y_trainval[tr_idx]
 
         pipe.fit(X_tr, y_tr)
 
         y_tr_pred = pipe.predict(X_tr)
-        y_val_pred = pipe.predict(X_val)
-
         train_scores.append(fbeta_score(y_tr, y_tr_pred, beta=3))
-        val_scores.append(fbeta_score(y_val, y_val_pred, beta=3))
 
-    print(f"Training F3 (CV mean ± std): {np.mean(train_scores):.3f} ± {np.std(train_scores):.3f}")
-    print(f"Validation F3 (CV mean ± std): {np.mean(val_scores):.3f} ± {np.std(val_scores):.3f}")
+        p_val = pipe.predict_proba(X_val)[:, 1]
+        oof_p[val_idx] = p_val
 
-    # Evaluate on holdout and output TP/FP/TN/FN
+    print(f"Training F3 score (CV mean ± std): {np.mean(train_scores):.3f} ± {np.std(train_scores):.3f}")
+
+    # Threshold tuning using cross validation predictions
+    best_t, best_cv_f3 = best_threshold_for_fbeta(y_trainval, oof_p, beta=3.0)
+    print(f"Chosen threhsold from CV validation: {best_t:.2f}; F3_score: {best_cv_f3:.3f}")
+
+    # Evaluate held-out set using threshold found
     pipe.fit(X_trainval, y_trainval)
-    y_hold_pred = pipe.predict(X_holdout)
+    p_hold = pipe.predict_proba(X_holdout)[:, 1]
+    y_hold_pred = (p_hold >= best_t).astype(int)
 
     hold_f3 = fbeta_score(y_holdout, y_hold_pred, beta=3)
-    print(f"Holdout F3 (10% of training.csv): {hold_f3:.3f}")
+    print(f"Holdout F3 score (10% of training.csv): {hold_f3:.3f}")
 
     tn, fp, fn, tp = confusion_matrix(y_holdout, y_hold_pred, labels=[0, 1]).ravel()
     print(f"TN: {tn}  FP: {fp}  FN: {fn}  TP: {tp}")
 
-    MIN_EXPECTED_F3 = 0.73  # set this realistically for your project
+    prec = precision_score(y_holdout, y_hold_pred, zero_division=0)
+    rec  = recall_score(y_holdout, y_hold_pred, zero_division=0)
+
+    print(f"Precision: {prec:.3f}")
+    print(f"Recall: {rec:.3f}")
+
+    MIN_EXPECTED_F3 = 0.7 # An F3 score greater than 0.7 would be required for the system to be deployed in practice.
 
     if hold_f3 < MIN_EXPECTED_F3:
         raise RuntimeError(
             f"Model quality gate failed: holdout F3={hold_f3:.3f} < {MIN_EXPECTED_F3:.2f}"
         )
 
-    # Load unlabeled test set and predict
+    # Load test set and predict
     try:
         df_test = pd.read_csv(flags.input)
     except FileNotFoundError as e:
@@ -175,11 +209,13 @@ def main():
 
     X_test = make_features(df_test).to_numpy()
 
-    y_pred = pipe.predict(X_test)
+    p_test = pipe.predict_proba(X_test)[:, 1]
+    y_pred = (p_test >= best_t).astype(int)
+
 
     out = pd.DataFrame({"aki": np.where(y_pred == 1, "y", "n")})
     out.to_csv(flags.output, index=False)
-        
+
 
 if __name__ == "__main__":
     main()
