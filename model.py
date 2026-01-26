@@ -173,7 +173,7 @@ def main():
 
     # Threshold tuning using cross validation predictions
     best_t, best_cv_f3 = best_threshold_for_fbeta(y_trainval, oof_p, beta=3.0)
-    print(f"Chosen threhsold from CV validation: {best_t:.2f}; F3_score: {best_cv_f3:.3f}")
+    print(f"Chosen threshold from CV validation: {best_t:.2f}; F3_score: {best_cv_f3:.3f}")
 
     # Evaluate held-out set using threshold found
     pipe.fit(X_trainval, y_trainval)
