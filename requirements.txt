@@ -5,10 +5,10 @@ This system uses only mature, widely adopted Python libraries that are
 appropriate for deployment in production or clinical decision-support
 settings.
 
-- NumPy and Pandas are used for numerical computation and robust handling
-  of tabular data.
-- scikit-learn is used for preprocessing, model training, and evaluation,
-  providing deterministic and well-tested machine learning components.
+NumPy and Pandas are used for numerical computation and robust handling
+of tabular data.
+scikit-learn is used for preprocessing, model training, and evaluation,
+providing deterministic and well-tested machine learning components.
 
 All dependencies are actively maintained, widely used in industry and
 research, and avoid experimental or unsafe functionality. The resulting
