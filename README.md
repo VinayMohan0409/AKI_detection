@@ -27,7 +27,7 @@ Preprocessing is fitted inside each fold through `sklearn.pipeline.Pipeline`, av
 
 `explore.ipynb` records the exploratory analysis that motivated the features. Its stored outputs describe 7,301 labelled patients, a 79.24%/20.76% non-AKI/AKI class split, and variable-length histories ranging from 1 to 44 creatinine measurements.
 
-No aggregate model score is claimed here because the training data needed to reproduce a run are not included in this repository.
+Running `model.py` with the labelled dataset produces the full evaluation record: selected threshold, cross-validation F3, holdout F3, precision, recall, and confusion matrix.
 
 ## Repository layout
 
@@ -74,6 +74,6 @@ docker run --rm \
 
 The container expects `/data/training.csv` to be present through the mounted directory.
 
-## Scope
+## Engineering highlights
 
-This is a classical, interpretable ML pipeline rather than a large or generative model. Its relevance is in the experimental discipline: explicit split boundaries, out-of-fold operating-point selection, imbalance-aware metrics, deterministic seeds, and a holdout quality gate.
+The project demonstrates an interpretable, production-oriented ML workflow with explicit split boundaries, out-of-fold operating-point selection, imbalance-aware metrics, deterministic seeds, and a holdout quality gate.
