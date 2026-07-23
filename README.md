@@ -1,42 +1,79 @@
-# Acute Kidney Injury (AKI) Prediction System
+# Acute Kidney Injury Prediction
 
-## Overview
-This repository implements a machine learning system to predict acute kidney injury (AKI) from patient blood test data, developed in accordance with the coursework brief. The system prioritises recall to minimise false negatives, as missing AKI cases is clinically more harmful than raising false alarms.
+A reproducible binary-classification pipeline for predicting acute kidney injury (AKI) from longitudinal creatinine measurements and patient demographics. The project emphasises recall-aware model selection, leakage-resistant evaluation, and a small, inspectable deployment path.
 
-The solution consists of:
-- explore.ipynb - exploratory data analysis and feature understanding
-- model.py – training, validation, and inference pipeline 
+## What the project does
 
-### explore.ipynb
-The notebook is used to:
-- analyse class imbalance (roughly 79% non-AKI),
-- motivate the use of derived features (e.g. baseline, recent value, and changes over time).
-All design decisions in model.py are motivated by findings in this notebook.
+`model.py`:
 
-### model.py
-- Feature engineering.
-- For each patient, the model extracts robust summary features from variable-length creatinine histories, including:
-baseline and most recent values, min, max, mean, standard deviation, and range, absolute and relative change from baseline,
-number of available tests, along with age and binary-encoded sex. Missing values are handled explicitly.
+- converts variable-length creatinine histories into 12 tabular features;
+- handles missing values inside a scikit-learn pipeline;
+- trains a class-balanced logistic-regression classifier;
+- selects a decision threshold from out-of-fold predictions by maximising F3, which weights recall more heavily than precision;
+- evaluates the fixed threshold once on a stratified 10% holdout set;
+- applies a minimum holdout F3 quality gate before writing test predictions.
 
-## Model
-A logistic regression classifier is used to address the supervised binary classification
-task of predicting AKI versus non-AKI.
+The feature set includes age, encoded sex, test count, baseline and latest creatinine, distribution statistics, and absolute and relative change from baseline.
 
-## Data Splits
-The labelled data are split into training data for model fitting, validation data
-(via 5-fold cross-validation) for F3-based threshold selection, and a held-out
-set (10%) used once for unbiased internal evaluation. (Training and Validation uses 90% of the training data set)
+## Empirical design
 
+The labelled data are divided into:
 
-## Recall prioritisation and evaluation
-Recall is prioritised in three ways:
-- Metric choice: model selection is based on the F3 score, which heavily weights recall.
-- Threshold optimisation: using 5-fold stratified cross-validation, out of fold predicted probabilities are collected and a decision threshold is chosen to maximise F3 on validation data.
-- The chosen threshold is fixed before evaluation on a held-out set and before generating final predictions.
-This ensures recall-biased behaviour without test-set leakage and aligns validation and deployment decisions.
+1. a 90% train/validation partition;
+2. five stratified folds within that partition for out-of-fold threshold selection;
+3. a 10% holdout used only after the threshold is fixed.
 
-## Summary
-This submission delivers a recall-focused AKI prediction system with explicit F3 optimisation, robust feature engineering, and a clean, leakage-free evaluation strategy, fully aligned with the coursework objectives.
+Preprocessing is fitted inside each fold through `sklearn.pipeline.Pipeline`, avoiding leakage from imputation and standardisation. The script reports cross-validation training F3, threshold-selection F3, holdout F3, precision, recall, and the full confusion matrix.
 
-### Justification of why the libraries used are reasonable and safe to use in an eventual production system is provided in requirements.txt
+`explore.ipynb` records the exploratory analysis that motivated the features. Its stored outputs describe 7,301 labelled patients, a 79.24%/20.76% non-AKI/AKI class split, and variable-length histories ranging from 1 to 44 creatinine measurements.
+
+No aggregate model score is claimed here because the training data needed to reproduce a run are not included in this repository.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `model.py` | Feature engineering, training, threshold selection, evaluation, and inference |
+| `explore.ipynb` | Exploratory analysis of class balance and longitudinal creatinine data |
+| `requirements.txt` | Minimal Python dependencies |
+| `Dockerfile` | Containerised command-line inference workflow |
+
+## Run locally
+
+Create an environment and install the dependencies:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Provide:
+
+- `training.csv`, containing the labelled training rows;
+- a test CSV containing the same input columns, without requiring the `aki` label.
+
+Expected columns include `age`, `sex`, and numbered `creatinine_result_*` fields. The training file must also contain `aki` values encoded as `y` or `n`.
+
+```bash
+python model.py --input test.csv --output aki.csv
+```
+
+The output is a one-column CSV named `aki`, with `y`/`n` predictions.
+
+## Run with Docker
+
+```bash
+docker build -t aki-detection .
+docker run --rm \
+  -v "$PWD:/data" \
+  aki-detection \
+  --input=/data/test.csv \
+  --output=/data/aki.csv
+```
+
+The container expects `/data/training.csv` to be present through the mounted directory.
+
+## Scope
+
+This is a classical, interpretable ML pipeline rather than a large or generative model. Its relevance is in the experimental discipline: explicit split boundaries, out-of-fold operating-point selection, imbalance-aware metrics, deterministic seeds, and a holdout quality gate.
